@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # Todos os dias às 10h13 de Brasília (13h13 UTC).
-    - cron: '13 13 * * *'
+        - cron: '*/15 * * * *'
 
 permissions:
   contents: write

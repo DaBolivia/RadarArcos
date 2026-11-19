@@ -1292,3 +1292,445 @@ fetch(assetRoot + 'data.json')
     if (!document.hidden) atualizar();
   });
 })();
+
+// Rankings do Radar Arcos
+(() => {
+  if (typeof MutationObserver === 'undefined') return;
+
+  const host = document.querySelector('main');
+  if (!host) return;
+
+  let categoria = 'propostas';
+  let ano = '';
+
+  const limpar = texto => String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+  function homenagem(m) {
+    const sigla = D.types.find(t => t.id === m.tipo)?.sigla;
+    const texto = limpar(m.ementa);
+
+    return (
+      sigla === 'PDL' &&
+      /\bconcessao\b/.test(texto) &&
+      /\b(honorari[oa]|honraria|medalha|aplausos|honrosa|honra ao merito|boina de ouro)\b/.test(texto) &&
+      !/\b(altera|revoga|regulamenta)\b/.test(texto)
+    );
+  }
+
+  function listar() {
+    const unicas = [
+      ...new Map(D.materials.map(m => [m.id, m])).values()
+    ];
+
+    return D.people.map(p => {
+      const autores = new Set(
+        D.authors
+          .filter(a =>
+            a.content_type === 2 &&
+            a.object_id === p.id
+          )
+          .map(a => a.id)
+      );
+
+      const materias = unicas.filter(m =>
+        (!ano || String(m.ano) === ano) &&
+        m.autores.some(id => autores.has(id)) &&
+        (categoria !== 'homenagens' || homenagem(m))
+      ).sort((a, b) =>
+        (b.data_apresentacao || '')
+          .localeCompare(a.data_apresentacao || '') ||
+        b.id - a.id
+      );
+
+      return {
+        pessoa: p,
+        materias,
+        quantidade: materias.length
+      };
+    }).sort((a, b) =>
+      b.quantidade - a.quantidade ||
+      a.pessoa.nome_parlamentar.localeCompare(
+        b.pessoa.nome_parlamentar,
+        'pt-BR'
+      )
+    );
+  }
+
+  function desenhar(bloco) {
+    const anos = [...new Set(D.materials.map(m => m.ano))]
+      .sort((a, b) => b - a);
+
+    const data = new Date(D.updatedAt).toLocaleDateString(
+      'pt-BR',
+      { timeZone: 'America/Sao_Paulo' }
+    );
+
+    bloco.innerHTML = `
+      <style>
+        #radar-rankings {
+          margin: 32px 0;
+          color: #123247;
+        }
+
+        #radar-rankings .rk-card {
+          background: white;
+          border: 1px solid #dbe5ec;
+          border-radius: 18px;
+          padding: clamp(18px, 3vw, 32px);
+        }
+
+        #radar-rankings h2 {
+          margin: 0 0 10px;
+          font-size: clamp(24px, 4vw, 34px);
+        }
+
+        #radar-rankings p {
+          line-height: 1.6;
+        }
+
+        #radar-rankings .rk-controls {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin: 22px 0;
+        }
+
+        #radar-rankings label {
+          display: grid;
+          gap: 6px;
+          font-size: 14px;
+          flex: 1;
+          min-width: 180px;
+        }
+
+        #radar-rankings select {
+          width: 100%;
+          padding: 12px;
+          border: 1px solid #b7cbd6;
+          border-radius: 9px;
+          background: white;
+          color: #123247;
+          font: inherit;
+        }
+
+        #radar-rankings .rk-note {
+          padding: 14px;
+          background: #f0f6f8;
+          border-radius: 10px;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+
+        #radar-rankings .rk-row {
+          padding: 18px 0;
+          border-bottom: 1px solid #e4ebef;
+        }
+
+        #radar-rankings .rk-top {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        #radar-rankings .rk-rank {
+          width: 35px;
+          flex-shrink: 0;
+          font-weight: 700;
+        }
+
+        #radar-rankings .rk-name {
+          flex: 1;
+          min-width: 0;
+          font-weight: 700;
+          color: #123247;
+        }
+
+        #radar-rankings .rk-count {
+          font-size: 26px;
+          font-weight: 800;
+          font-variant-numeric: tabular-nums;
+        }
+
+        #radar-rankings .rk-bar {
+          height: 6px;
+          background: #eaf0f3;
+          border-radius: 6px;
+          overflow: hidden;
+          margin: 12px 0;
+        }
+
+        #radar-rankings .rk-bar span {
+          display: block;
+          height: 100%;
+          background: #239b88;
+        }
+
+        #radar-rankings details {
+          margin-top: 10px;
+          font-size: 14px;
+        }
+
+        #radar-rankings summary {
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        #radar-rankings .rk-items {
+          max-height: 360px;
+          overflow: auto;
+          margin-top: 12px;
+          padding: 0 8px 0 24px;
+        }
+
+        #radar-rankings .rk-items li {
+          padding: 10px 0;
+          line-height: 1.5;
+        }
+
+        #radar-rankings .rk-items a {
+          color: #155e75;
+          text-decoration: underline;
+        }
+
+        #radar-rankings .rk-small {
+          font-size: 14px;
+          color: #4c6474;
+        }
+
+        #radar-rankings .rk-pending {
+          padding: 24px 0;
+        }
+      </style>
+
+      <div class="rk-card">
+        <span class="eyebrow">DADOS PARA ACOMPANHAR</span>
+
+        <h2>Vereadores em números</h2>
+
+        <p>
+          Compare quantidades e confira os registros.
+          Os números não avaliam a qualidade ou o impacto
+          do trabalho parlamentar.
+        </p>
+
+        <div class="rk-controls">
+          <label>
+            Indicador
+            <select data-rk-category>
+              <option
+                value="propostas"
+                ${categoria === 'propostas' ? 'selected' : ''}
+              >
+                Mais propostas apresentadas
+              </option>
+
+              <option
+                value="homenagens"
+                ${categoria === 'homenagens' ? 'selected' : ''}
+              >
+                Mais homenagens propostas
+              </option>
+
+              <option
+                value="diarias"
+                ${categoria === 'diarias' ? 'selected' : ''}
+              >
+                Diárias pagas — dados pendentes
+              </option>
+            </select>
+          </label>
+
+          <label>
+            Período legislativo
+            <select
+              data-rk-year
+              ${categoria === 'diarias' ? 'disabled' : ''}
+            >
+              <option value="">Todo o período coletado</option>
+
+              ${anos.map(a => `
+                <option
+                  value="${a}"
+                  ${ano === String(a) ? 'selected' : ''}
+                >${a}</option>
+              `).join('')}
+            </select>
+          </label>
+        </div>
+
+        <div data-rk-body></div>
+      </div>
+    `;
+
+    const body = bloco.querySelector('[data-rk-body]');
+
+    if (categoria === 'diarias') {
+      body.innerHTML = `
+        <div class="rk-pending">
+          <h3>
+            Diárias pagas: aguardando dados oficiais validados
+          </h3>
+
+          <p>
+            A relação de pagamentos por beneficiário ainda
+            não foi integrada. Não há ranking financeiro
+            disponível; isso não significa gasto zero.
+          </p>
+
+          <p>
+            O critério será o total de diárias efetivamente
+            pagas por vereador no período, descontadas as
+            devoluções identificadas e sem misturar passagens,
+            adiantamentos ou despesas de servidores.
+          </p>
+
+          <a
+            class="outline"
+            href="https://www.arcos.mg.leg.br/transparencia/diarias-1"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Consultar diárias na fonte oficial</a>
+        </div>
+      `;
+    } else {
+      const lista = listar();
+
+      const maximo = Math.max(
+        1,
+        ...lista.map(r => r.quantidade)
+      );
+
+      let posicao = 0;
+      let anterior = null;
+
+      body.innerHTML = `
+        <p class="rk-note">
+          ${categoria === 'homenagens'
+            ? `Homenagens identificadas por regra na ementa:
+               projetos de decreto legislativo que concedem
+               títulos honorários, honrarias, medalhas e
+               moções honrosas ou de aplausos.
+               São propostas apresentadas, não necessariamente
+               aprovadas. A classificação pode precisar
+               de revisão.`
+            : `Contagem de matérias de autoria ou coautoria
+               individual cadastrada no SAPL, incluindo
+               requerimentos, indicações, projetos, emendas
+               e outros tipos. Não corresponde apenas a
+               projetos de lei nem a propostas aprovadas.`}
+
+          Cada matéria conta uma vez por vereador.
+          Coautorias contam para cada autor; autoria de
+          comissão ou Mesa não é atribuída automaticamente
+          aos seus membros.
+          Empates compartilham a mesma posição.
+        </p>
+
+        <p class="rk-small">
+          ${ano ? `Ano ${ano}` : 'Desde 2025'}
+          · Coleta legislativa: ${data}
+          · Cobertura até ${date(D.through)}.
+        </p>
+
+        ${lista.map((r, i) => {
+          if (r.quantidade !== anterior) posicao = i + 1;
+          anterior = r.quantidade;
+
+          return `
+            <article class="rk-row">
+              <div class="rk-top">
+                <span class="rk-rank">
+                  ${r.quantidade ? posicao + 'º' : '—'}
+                </span>
+
+                <a
+                  class="rk-name"
+                  href="#vereador/${r.pessoa.id}"
+                >${esc(r.pessoa.nome_parlamentar)}</a>
+
+                <span class="rk-count">${r.quantidade}</span>
+              </div>
+
+              <div class="rk-bar" aria-hidden="true">
+                <span
+                  style="width:${r.quantidade / maximo * 100}%"
+                ></span>
+              </div>
+
+              <span class="rk-small">
+                ${categoria === 'homenagens'
+                  ? 'homenagens identificadas'
+                  : 'matérias de autoria ou coautoria'}
+              </span>
+
+              ${r.quantidade ? `
+                <details>
+                  <summary>
+                    Ver os ${r.quantidade} registros
+                  </summary>
+
+                  <ol class="rk-items">
+                    ${r.materias.map(m => `
+                      <li>
+                        <a href="#materia/${m.id}">
+                          ${esc(title(m))}
+                        </a>
+                        · ${date(m.data_apresentacao)}
+
+                        <p>${esc(m.ementa)}</p>
+                      </li>
+                    `).join('')}
+                  </ol>
+                </details>
+              ` : `
+                <p class="rk-small">
+                  Nenhum registro encontrado neste recorte.
+                </p>
+              `}
+            </article>
+          `;
+        }).join('')}
+      `;
+    }
+
+    bloco.querySelector('[data-rk-category]').onchange = e => {
+      categoria = e.target.value;
+      desenhar(bloco);
+    };
+
+    bloco.querySelector('[data-rk-year]').onchange = e => {
+      ano = e.target.value;
+      desenhar(bloco);
+    };
+  }
+
+  function montar() {
+    if (
+      typeof D === 'undefined' ||
+      !D ||
+      host.querySelector('#radar-rankings')
+    ) return;
+
+    const destino = host.querySelector('.homegrid');
+    if (!destino) return;
+
+    const bloco = document.createElement('section');
+    bloco.id = 'radar-rankings';
+
+    bloco.setAttribute(
+      'aria-label',
+      'Rankings de atividade parlamentar'
+    );
+
+    destino.insertAdjacentElement('beforebegin', bloco);
+    desenhar(bloco);
+  }
+
+  const observer = new MutationObserver(montar);
+  observer.observe(host, { childList: true });
+
+  montar();
+})();

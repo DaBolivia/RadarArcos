@@ -1293,7 +1293,7 @@ fetch(assetRoot + 'data.json')
   });
 })();
 
-// Rankings do Radar Arcos
+// Rankings do Radar Arcos — com fotos dos vereadores
 (() => {
   if (typeof MutationObserver === 'undefined') return;
 
@@ -1320,6 +1320,55 @@ fetch(assetRoot + 'data.json')
     );
   }
 
+  function fotoVereador(pessoa) {
+    const nome = pessoa.nome_parlamentar || 'Vereador';
+
+    const iniciais = nome
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map(parte => parte.charAt(0))
+      .join('')
+      .toUpperCase();
+
+    let url = '';
+
+    if (pessoa.fotografia) {
+      try {
+        const endereco = new URL(
+          pessoa.fotografia,
+          'https://sapl.arcos.mg.leg.br/'
+        );
+
+        if (endereco.protocol === 'http:') {
+          endereco.protocol = 'https:';
+        }
+
+        if (endereco.protocol === 'https:') {
+          url = endereco.href;
+        }
+      } catch {
+        url = '';
+      }
+    }
+
+    return `
+      <span class="rk-photo" aria-hidden="true">
+        <span class="rk-initials">${esc(iniciais)}</span>
+        ${url ? `
+          <img
+            src="${esc(url)}"
+            alt=""
+            loading="lazy"
+            decoding="async"
+            width="48"
+            height="48"
+          >
+        ` : ''}
+      </span>
+    `;
+  }
+
   function listar() {
     const unicas = [
       ...new Map(D.materials.map(m => [m.id, m])).values()
@@ -1335,15 +1384,17 @@ fetch(assetRoot + 'data.json')
           .map(a => a.id)
       );
 
-      const materias = unicas.filter(m =>
-        (!ano || String(m.ano) === ano) &&
-        m.autores.some(id => autores.has(id)) &&
-        (categoria !== 'homenagens' || homenagem(m))
-      ).sort((a, b) =>
-        (b.data_apresentacao || '')
-          .localeCompare(a.data_apresentacao || '') ||
-        b.id - a.id
-      );
+      const materias = unicas
+        .filter(m =>
+          (!ano || String(m.ano) === ano) &&
+          m.autores.some(id => autores.has(id)) &&
+          (categoria !== 'homenagens' || homenagem(m))
+        )
+        .sort((a, b) =>
+          (b.data_apresentacao || '')
+            .localeCompare(a.data_apresentacao || '') ||
+          b.id - a.id
+        );
 
       return {
         pessoa: p,
@@ -1376,7 +1427,7 @@ fetch(assetRoot + 'data.json')
         }
 
         #radar-rankings .rk-card {
-          background: white;
+          background: #ffffff;
           border: 1px solid #dbe5ec;
           border-radius: 18px;
           padding: clamp(18px, 3vw, 32px);
@@ -1411,7 +1462,7 @@ fetch(assetRoot + 'data.json')
           padding: 12px;
           border: 1px solid #b7cbd6;
           border-radius: 9px;
-          background: white;
+          background: #ffffff;
           color: #123247;
           font: inherit;
         }
@@ -1425,8 +1476,12 @@ fetch(assetRoot + 'data.json')
         }
 
         #radar-rankings .rk-row {
-          padding: 18px 0;
+          padding: 20px 0;
           border-bottom: 1px solid #e4ebef;
+        }
+
+        #radar-rankings .rk-row:last-child {
+          border-bottom: 0;
         }
 
         #radar-rankings .rk-top {
@@ -1437,18 +1492,76 @@ fetch(assetRoot + 'data.json')
 
         #radar-rankings .rk-rank {
           width: 35px;
-          flex-shrink: 0;
+          flex: 0 0 35px;
           font-weight: 700;
+          font-size: 15px;
         }
 
         #radar-rankings .rk-name {
+          display: flex;
+          align-items: center;
+          gap: 12px;
           flex: 1;
           min-width: 0;
           font-weight: 700;
           color: #123247;
+          text-decoration: none;
+        }
+
+        #radar-rankings .rk-name:hover .rk-person-name {
+          text-decoration: underline;
+        }
+
+        #radar-rankings .rk-person-name {
+          min-width: 0;
+          overflow-wrap: anywhere;
+          line-height: 1.35;
+        }
+
+        #radar-rankings .rk-photo {
+          position: relative;
+          display: block;
+          width: 48px;
+          height: 48px;
+          flex: 0 0 48px;
+          overflow: hidden;
+          border-radius: 50%;
+          background: #eaf0f3;
+          border: 2px solid #dbe5ec;
+        }
+
+        #radar-rankings .rk-initials {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #155e75;
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+        #radar-rankings .rk-photo img {
+          position: absolute;
+          inset: 0;
+          display: block;
+          width: 100%;
+          height: 100%;
+          max-width: none;
+          margin: 0;
+          border: 0;
+          border-radius: 50%;
+          object-fit: cover;
+          object-position: center top;
+          background: #eaf0f3;
+        }
+
+        #radar-rankings .rk-photo img[hidden] {
+          display: none;
         }
 
         #radar-rankings .rk-count {
+          flex-shrink: 0;
           font-size: 26px;
           font-weight: 800;
           font-variant-numeric: tabular-nums;
@@ -1459,13 +1572,14 @@ fetch(assetRoot + 'data.json')
           background: #eaf0f3;
           border-radius: 6px;
           overflow: hidden;
-          margin: 12px 0;
+          margin: 14px 0 12px;
         }
 
         #radar-rankings .rk-bar span {
           display: block;
           height: 100%;
           background: #239b88;
+          border-radius: 6px;
         }
 
         #radar-rankings details {
@@ -1502,6 +1616,36 @@ fetch(assetRoot + 'data.json')
 
         #radar-rankings .rk-pending {
           padding: 24px 0;
+        }
+
+        @media (max-width: 480px) {
+          #radar-rankings .rk-top {
+            gap: 8px;
+          }
+
+          #radar-rankings .rk-rank {
+            width: 27px;
+            flex-basis: 27px;
+            font-size: 14px;
+          }
+
+          #radar-rankings .rk-name {
+            gap: 9px;
+          }
+
+          #radar-rankings .rk-photo {
+            width: 38px;
+            height: 38px;
+            flex-basis: 38px;
+          }
+
+          #radar-rankings .rk-initials {
+            font-size: 14px;
+          }
+
+          #radar-rankings .rk-count {
+            font-size: 23px;
+          }
         }
       </style>
 
@@ -1636,7 +1780,10 @@ fetch(assetRoot + 'data.json')
         </p>
 
         ${lista.map((r, i) => {
-          if (r.quantidade !== anterior) posicao = i + 1;
+          if (r.quantidade !== anterior) {
+            posicao = i + 1;
+          }
+
           anterior = r.quantidade;
 
           return `
@@ -1649,9 +1796,17 @@ fetch(assetRoot + 'data.json')
                 <a
                   class="rk-name"
                   href="#vereador/${r.pessoa.id}"
-                >${esc(r.pessoa.nome_parlamentar)}</a>
+                >
+                  ${fotoVereador(r.pessoa)}
 
-                <span class="rk-count">${r.quantidade}</span>
+                  <span class="rk-person-name">
+                    ${esc(r.pessoa.nome_parlamentar)}
+                  </span>
+                </a>
+
+                <span class="rk-count">
+                  ${r.quantidade}
+                </span>
               </div>
 
               <div class="rk-bar" aria-hidden="true">
@@ -1696,6 +1851,21 @@ fetch(assetRoot + 'data.json')
       `;
     }
 
+    // Se a foto estiver indisponível, mantém as iniciais.
+    bloco.querySelectorAll('.rk-photo img').forEach(img => {
+      const mostrarIniciais = () => {
+        img.hidden = true;
+      };
+
+      img.addEventListener('error', mostrarIniciais, {
+        once: true
+      });
+
+      if (img.complete && img.naturalWidth === 0) {
+        mostrarIniciais();
+      }
+    });
+
     bloco.querySelector('[data-rk-category]').onchange = e => {
       categoria = e.target.value;
       desenhar(bloco);
@@ -1712,7 +1882,9 @@ fetch(assetRoot + 'data.json')
       typeof D === 'undefined' ||
       !D ||
       host.querySelector('#radar-rankings')
-    ) return;
+    ) {
+      return;
+    }
 
     const destino = host.querySelector('.homegrid');
     if (!destino) return;

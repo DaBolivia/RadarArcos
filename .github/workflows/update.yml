@@ -1,8 +1,11 @@
 name: Atualizar Radar Arcos
+
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 7 * * *'
+    # Todos os dias às 04h37 de Brasília (07h37 UTC).
+    - cron: '37 7 * * *'
+
 permissions:
   contents: write
 concurrency:

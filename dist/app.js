@@ -957,3 +957,338 @@ fetch(assetRoot + 'data.json')
       </div>
     `;
   });
+
+
+// Contador estimado de subsídios — Radar Arcos
+(() => {
+  // O teste de páginas não possui observador de DOM.
+  if (typeof MutationObserver === 'undefined') return;
+
+  const VAGAS = 9;
+
+  // Valores mensais por cargo, em reais.
+  // Atualizar esta tabela após conferir novas resoluções.
+  const PERIODOS = [
+    { ano: 2025, mensal: 5740.52 },
+    { ano: 2026, mensal: 5964.40 }
+  ];
+
+  // Não projeta valores para anos ainda não conferidos.
+  const LIMITE = Date.parse('2027-01-01T00:00:00-03:00');
+
+  const moeda = valor => valor.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL'
+  });
+
+  const dataBrasilia = instante =>
+    new Date(instante).toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo'
+    });
+
+  let ultimoValor = '';
+
+  function calcular(instante) {
+    let porCargo = 0;
+
+    for (const periodo of PERIODOS) {
+      for (let mes = 0; mes < 12; mes++) {
+        // Meia-noite de Brasília corresponde a 03:00 UTC.
+        const inicio = Date.UTC(periodo.ano, mes, 1, 3);
+        const fim = Date.UTC(periodo.ano, mes + 1, 1, 3);
+
+        const fracao = Math.max(
+          0,
+          Math.min(1, (instante - inicio) / (fim - inicio))
+        );
+
+        porCargo += periodo.mensal * fracao;
+      }
+    }
+
+    return {
+      individual: porCargo,
+      total: porCargo * VAGAS
+    };
+  }
+
+  function atualizar() {
+    const bloco = document.getElementById('radar-subsidios');
+    if (!bloco) return;
+
+    const agora = Date.now();
+    const valores = calcular(Math.min(agora, LIMITE));
+    const novoValor = moeda(valores.total);
+    const numero = bloco.querySelector('[data-total]');
+
+    if (novoValor !== ultimoValor) {
+      numero.textContent = novoValor;
+
+      if (
+        ultimoValor &&
+        typeof numero.animate === 'function' &&
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        numero.animate(
+          [
+            { transform: 'translateY(3px)', opacity: 0.75 },
+            { transform: 'translateY(0)', opacity: 1 }
+          ],
+          { duration: 220, easing: 'ease-out' }
+        );
+      }
+
+      ultimoValor = novoValor;
+    }
+
+    bloco.querySelector('[data-individual]').textContent =
+      moeda(valores.individual);
+
+    const ano = Number(
+      new Date(agora).toLocaleDateString('en-US', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric'
+      })
+    );
+
+    const periodo = PERIODOS.find(item => item.ano === ano);
+
+    bloco.querySelector('[data-mensal]').textContent =
+      periodo ? moeda(periodo.mensal) : 'A conferir';
+
+    bloco.querySelector('[data-status]').textContent =
+      agora >= LIMITE
+        ? 'Estimativa até 31/12/2026. Aguardando conferência dos valores de 2027.'
+        : `Desde 01/01/2025 até ${dataBrasilia(agora)} · horário de Brasília`;
+  }
+
+  function montar() {
+    const pagina = document.querySelector('main');
+    if (!pagina) return;
+
+    const banner = pagina.querySelector('.hero');
+    if (!banner || pagina.querySelector('#radar-subsidios')) return;
+
+    const bloco = document.createElement('section');
+    bloco.id = 'radar-subsidios';
+    bloco.className = 'wrap';
+    bloco.setAttribute('aria-labelledby', 'radar-subsidios-titulo');
+
+    bloco.innerHTML = `
+      <style>
+        #radar-subsidios {
+          margin-top: 28px;
+          margin-bottom: 28px;
+        }
+
+        #radar-subsidios .salario-painel {
+          padding: clamp(22px, 4vw, 42px);
+          border-radius: 20px;
+          border: 1px solid #274c60;
+          background: linear-gradient(125deg, #102f43, #17495a);
+          color: #ffffff;
+          box-shadow: 0 12px 30px rgba(16, 47, 67, 0.10);
+        }
+
+        #radar-subsidios .salario-etiqueta {
+          color: #8edbd2;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+        }
+
+        #radar-subsidios h2 {
+          margin: 12px 0 8px;
+          color: #ffffff;
+          font-size: clamp(21px, 3vw, 30px);
+        }
+
+        #radar-subsidios .salario-periodo {
+          color: #d3e2e9;
+          font-size: 13px;
+        }
+
+        #radar-subsidios .salario-total {
+          display: block;
+          margin: 22px 0 8px;
+          color: #ffffff;
+          font-size: clamp(27px, 6vw, 64px);
+          font-weight: 800;
+          line-height: 1.15;
+          letter-spacing: -1px;
+          font-variant-numeric: tabular-nums;
+          overflow-wrap: anywhere;
+        }
+
+        #radar-subsidios .salario-legenda {
+          margin: 0;
+          color: #d3e2e9;
+          font-size: 14px;
+        }
+
+        #radar-subsidios .salario-detalhes {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 16px;
+          margin-top: 24px;
+          padding-top: 22px;
+          border-top: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        #radar-subsidios .salario-detalhes span {
+          display: block;
+          color: #d3e2e9;
+          font-size: 12px;
+        }
+
+        #radar-subsidios .salario-detalhes strong {
+          display: block;
+          margin-top: 6px;
+          font-size: clamp(18px, 3vw, 25px);
+          font-variant-numeric: tabular-nums;
+        }
+
+        #radar-subsidios .salario-nota {
+          margin: 22px 0 0;
+          color: #d3e2e9;
+          font-size: 13px;
+          line-height: 1.6;
+        }
+
+        #radar-subsidios details {
+          margin-top: 18px;
+          color: #e5eef3;
+          font-size: 13px;
+          line-height: 1.7;
+        }
+
+        #radar-subsidios summary {
+          cursor: pointer;
+          font-weight: 600;
+        }
+
+        #radar-subsidios a {
+          color: #a7eee4;
+          text-decoration: underline;
+        }
+
+        @media (max-width: 480px) {
+          #radar-subsidios .salario-detalhes {
+            grid-template-columns: 1fr;
+          }
+        }
+      </style>
+
+      <div class="salario-painel">
+        <span class="salario-etiqueta">
+          Transparência · Legislatura 2025–2028
+        </span>
+
+        <h2 id="radar-subsidios-titulo">
+          Subsídios dos vereadores — estimativa acumulada
+        </h2>
+
+        <p class="salario-periodo" data-status></p>
+
+        <strong class="salario-total" data-total aria-live="off">
+          Calculando…
+        </strong>
+
+        <p class="salario-legenda">
+          Total estimado de subsídios-base para os 9 cargos.
+        </p>
+
+        <div class="salario-detalhes">
+          <div>
+            <span>Acumulado estimado por cargo</span>
+            <strong data-individual>—</strong>
+          </div>
+
+          <div>
+            <span>Subsídio-base mensal por cargo no ano atual</span>
+            <strong data-mensal>—</strong>
+          </div>
+        </div>
+
+        <p class="salario-nota">
+          Estimativa proporcional ao tempo, atualizada a cada segundo.
+          Não representa pagamentos efetivamente realizados.
+          Não inclui 13º, adicional de férias, encargos, diárias
+          ou descontos.
+        </p>
+
+        <details>
+          <summary>Como calculamos e fontes oficiais</summary>
+
+          <p>
+            Consideramos 9 cargos ocupados continuamente desde
+            01/01/2025. Somamos os meses completos e a fração
+            transcorrida do mês atual, usando a duração real de
+            cada mês no horário de Brasília.
+          </p>
+
+          <p>
+            Base mensal por cargo: R$ 5.740,52 em 2025.
+            Para 2026, aplicamos a recomposição de 3,9%,
+            com efeitos desde 01/01/2026, resultando em
+            R$ 5.964,40 após arredondamento aos centavos.
+          </p>
+
+          <p>
+            O valor por cargo não é uma afirmação sobre quanto
+            cada pessoa recebeu. A estimativa não ajusta
+            afastamentos, vacâncias ou descontos por faltas.
+            O relógio usado é o do dispositivo do visitante.
+          </p>
+
+          <p>
+            A animação distribui o valor mensal ao longo do tempo;
+            não indica pagamentos a cada segundo.
+            As resoluções salariais precisam de revisão própria:
+            a coleta diária de matérias não atualiza esta tabela.
+            Sem novos valores conferidos, o contador para
+            no encerramento de 2026.
+          </p>
+
+          <p>
+            Fontes:
+            <a
+              href="https://sapl.arcos.mg.leg.br/media/sapl/public/normajuridica/2023/3434/resolucao_901.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Resolução 901/2023</a>
+            e
+            <a
+              href="https://sapl.arcos.mg.leg.br/media/sapl/public/normajuridica/2026/4726/resolucao_916.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Resolução 916/2026</a>.
+          </p>
+        </details>
+      </div>
+    `;
+
+    banner.insertAdjacentElement('afterend', bloco);
+    ultimoValor = '';
+    atualizar();
+  }
+
+  const pagina = document.querySelector('main');
+  if (!pagina) return;
+
+  const observador = new MutationObserver(montar);
+
+  // Detecta quando a página inicial é renderizada.
+  observador.observe(pagina, { childList: true });
+
+  montar();
+
+  window.setInterval(() => {
+    if (!document.hidden) atualizar();
+  }, 1000);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) atualizar();
+  });
+})();
